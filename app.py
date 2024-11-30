@@ -164,7 +164,7 @@ def main():
 
         corr_matrix = new_df.corr()
         Dependent_corr = corr_matrix.get('classification', pd.Series())
-        Imp_features = Dependent_corr[Dependent_corr.abs() > 0.4].index.tolist()
+        Imp_features = Dependent_corr[Dependent_corr.abs() > 0.1].index.tolist()
         if 'id' in Imp_features:
             Imp_features.remove('id')
 
