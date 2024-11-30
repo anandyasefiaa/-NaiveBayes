@@ -149,6 +149,10 @@ def main():
         # Kolom 'wc' dan 'rc' sudah ada di dalam dataset dan perlu imputasi menggunakan modus
         for col in ['wc', 'rc']:
             if col in new_df.columns:
+                # Ubah kolom ke numerik jika perlu
+                new_df[col] = pd.to_numeric(new_df[col], errors='coerce')  # 'coerce' akan mengganti nilai non-numeric menjadi NaN
+                
+                # Terapkan imputasi modus (mode imputation)
                 new_df[col] = imputer_mode.fit_transform(new_df[[col]]).flatten()
 
         # Pastikan data tidak memiliki nilai NaN setelah imputasi
@@ -170,7 +174,6 @@ def main():
         # Pastikan new_df dan Imp_features tidak None atau kosong
         if new_df is not None and Imp_features:
             # Pastikan kolom target 'classification' ada di dalam new_df
-            # Pastikan kolom 'classification' ada dalam new_df
             if 'classification' in new_df.columns:
                 corr_matrix = new_df.corr()
                 Dependent_corr = corr_matrix.get('classification', pd.Series())
@@ -209,50 +212,22 @@ def main():
         if model_type == "Naive Bayes":
             model = GaussianNB()
         elif model_type == "Decision Tree":
-            model = DecisionTreeClassifier()
+            model = DecisionTreeClassifier(random_state=42)
 
-        # Latih Model
         model.fit(X_train, y_train)
-        st.success(f"Model {model_type} berhasil dilatih!")
-
-        # Simpan Model untuk Evaluasi
-        st.session_state['model'] = model
-        st.session_state['X_test'] = X_test
-        st.session_state['y_test'] = y_test
-
-    # Halaman Evaluasi
-    elif page == "Evaluasi":
-        st.header("Evaluasi Model")
-
-        if 'model' not in st.session_state:
-            st.error("Harap latih model terlebih dahulu!")
-            return
-
-        model = st.session_state['model']
-        X_test = st.session_state['X_test']
-        y_test = st.session_state['y_test']
 
         # Prediksi
         y_pred = model.predict(X_test)
 
-        # Hasil Evaluasi
-        st.subheader("Akurasi Model")
-        accuracy = accuracy_score(y_test, y_pred)
-        st.write(f"Akurasi: {accuracy:.4f}")
+        # Tampilkan Evaluasi Model
+        st.subheader(f"Evaluasi Model {model_type}")
+        st.write(f"Akurasinya adalah: {accuracy_score(y_test, y_pred):.4f}")
+        st.write(classification_report(y_test, y_pred))
 
-        st.subheader("Laporan Klasifikasi")
-        st.text(classification_report(y_test, y_pred))
-
-        st.subheader("Matriks Kebingungungan")
+        st.subheader("Confusion Matrix")
         cm = confusion_matrix(y_test, y_pred)
-        st.write(cm)
-
-        # Plot Confusion Matrix
-        fig, ax = plt.subplots(figsize=(8, 6))
-        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", cbar=False, ax=ax)
-        ax.set_xlabel('Predicted')
-        ax.set_ylabel('Actual')
-        ax.set_title("Confusion Matrix")
+        fig, ax = plt.subplots()
+        sns.heatmap(cm, annot=True, fmt='d', cmap="Blues", xticklabels=model.classes_, yticklabels=model.classes_)
         st.pyplot(fig)
 
 if __name__ == "__main__":
