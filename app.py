@@ -85,7 +85,7 @@ def main():
         with col4:
             st.subheader("Kolom dengan Missing Value Rendah (<=20%)")
             st.write(low_missing_cols if not low_missing_cols.empty else "Tidak ada.")
-        
+
         # Debugging: Menampilkan tipe data setiap kolom
         st.write("Tipe data setiap kolom:")
         st.write(data.dtypes)
@@ -115,7 +115,7 @@ def main():
                     data[col] = imputer_mean.fit_transform(data[[col]]).flatten()
                 else:
                     data[col] = imputer_mode.fit_transform(data[[col]]).flatten()
-                    
+
         # Pastikan untuk menangani kategori dengan benar:
         for col in data.select_dtypes(include=['object']).columns:
             if col in ['wc', 'rc']:  # Tambahkan kolom ini pada pengecekan
@@ -144,7 +144,7 @@ def main():
             if 'classification_notckd' in new_df.columns:
                 X = new_df[Imp_features]  # Mengambil fitur penting berdasarkan korelasi
                 y = new_df['classification_notckd']  # Kolom target
-                
+
                 # Tampilkan sampel data untuk validasi
                 st.write("Contoh Data Fitur (X):")
                 st.dataframe(X.head())
