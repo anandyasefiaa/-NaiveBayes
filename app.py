@@ -59,123 +59,122 @@ def main():
         s = buffer.getvalue()
         st.text(s)
 
-    # Preprocessing
-elif page == "Preprocessing":
-    st.header("Penanganan Missing Value")
+    elif page == "Preprocessing":
+        st.header("Penanganan Missing Value")
 
-    col1, col2 = st.columns([3, 2])
+        col1, col2 = st.columns([3, 2])
 
-    with col1:
-        st.subheader("Data Asli")
-        st.dataframe(data, width=1000, height=400)
+        with col1:
+            st.subheader("Data Asli")
+            st.dataframe(data, width=1000, height=400)
 
-    with col2:
-        st.subheader("Total Missing Value per Kolom")
-        missing_values = data.isnull().sum()
-        st.dataframe(missing_values.rename("Jumlah Missing Value"))
+        with col2:
+            st.subheader("Total Missing Value per Kolom")
+            missing_values = data.isnull().sum()
+            st.dataframe(missing_values.rename("Jumlah Missing Value"))
 
-    missing_proportions = data.isnull().mean()
-    high_missing_cols = missing_proportions[missing_proportions > 0.2]
-    low_missing_cols = missing_proportions[(missing_proportions > 0) & (missing_proportions <= 0.2)]
+        missing_proportions = data.isnull().mean()
+        high_missing_cols = missing_proportions[missing_proportions > 0.2]
+        low_missing_cols = missing_proportions[(missing_proportions > 0) & (missing_proportions <= 0.2)]
 
-    col3, col4 = st.columns(2)
+        col3, col4 = st.columns(2)
 
-    with col3:
-        st.subheader("Kolom dengan Missing Value Tinggi (>20%)")
-        st.write(high_missing_cols if not high_missing_cols.empty else "Tidak ada.")
+        with col3:
+            st.subheader("Kolom dengan Missing Value Tinggi (>20%)")
+            st.write(high_missing_cols if not high_missing_cols.empty else "Tidak ada.")
 
-    with col4:
-        st.subheader("Kolom dengan Missing Value Rendah (<=20%)")
-        st.write(low_missing_cols if not low_missing_cols.empty else "Tidak ada.")
-    
-    # Menampilkan tipe data setiap kolom
-    st.write("Tipe data setiap kolom:")
-    st.write(data.dtypes)
+        with col4:
+            st.subheader("Kolom dengan Missing Value Rendah (<=20%)")
+            st.write(low_missing_cols if not low_missing_cols.empty else "Tidak ada.")
+        
+        # Menampilkan tipe data setiap kolom
+        st.write("Tipe data setiap kolom:")
+        st.write(data.dtypes)
 
-    # Menampilkan data sebelum preprocessing
-    st.write("Data sebelum preprocessing:")
-    st.dataframe(data.head())
+        # Menampilkan data sebelum preprocessing
+        st.write("Data sebelum preprocessing:")
+        st.dataframe(data.head())
 
-    if 'rbc' in data.columns:
-        data = data.drop('rbc', axis=1)
+        if 'rbc' in data.columns:
+            data = data.drop('rbc', axis=1)
 
-    imputer_mean = SimpleImputer(strategy='mean')
-    imputer_mode = SimpleImputer(strategy='most_frequent')
+        imputer_mean = SimpleImputer(strategy='mean')
+        imputer_mode = SimpleImputer(strategy='most_frequent')
 
-    # Memperbaiki imputasi berdasarkan tipe data
-    for col in high_missing_cols.index:
-        if col in data.columns:
-            if data[col].dtype in ['float64', 'int64']:  # Periksa tipe data numerik
-                sample_values = data[col].dropna().sample(data[col].isnull().sum(), replace=True).values
-                data.loc[data[col].isnull(), col] = sample_values
-            else:
-                st.warning(f"Kolom {col} tidak numerik, dan tidak dapat diisi dengan imputasi numerik.")
+        # Memperbaiki imputasi berdasarkan tipe data
+        for col in high_missing_cols.index:
+            if col in data.columns:
+                if data[col].dtype in ['float64', 'int64']:  # Periksa tipe data numerik
+                    sample_values = data[col].dropna().sample(data[col].isnull().sum(), replace=True).values
+                    data.loc[data[col].isnull(), col] = sample_values
+                else:
+                    st.warning(f"Kolom {col} tidak numerik, dan tidak dapat diisi dengan imputasi numerik.")
 
-    for col in low_missing_cols.index:
-        if col in data.columns:
-            if data[col].dtype in ['float64', 'int64']:
-                data[col] = imputer_mean.fit_transform(data[[col]]).flatten()
-            else:
-                data[col] = imputer_mode.fit_transform(data[[col]]).flatten()
+        for col in low_missing_cols.index:
+            if col in data.columns:
+                if data[col].dtype in ['float64', 'int64']:
+                    data[col] = imputer_mean.fit_transform(data[[col]]).flatten()
+                else:
+                    data[col] = imputer_mode.fit_transform(data[[col]]).flatten()
                 
-    # Pastikan untuk menangani kategori dengan benar
-    for col in data.select_dtypes(include=['object']).columns:
-        if col in ['wc', 'rc']:  # Tambahkan kolom ini pada pengecekan
-            data[col] = imputer_mode.fit_transform(data[[col]]).flatten()  # Gunakan imputasi modus
+        # Pastikan untuk menangani kategori dengan benar
+        for col in data.select_dtypes(include=['object']).columns:
+            if col in ['wc', 'rc']:  # Tambahkan kolom ini pada pengecekan
+                data[col] = imputer_mode.fit_transform(data[[col]]).flatten()  # Gunakan imputasi modus
+            else:
+                data[col] = data[col].astype(str)  # Ubah kolom kategori menjadi string
+
+        # Kolom-kolom kategorikal yang ingin diencoding
+        categorical_columns = ['rbc', 'pc', 'pcc', 'ba', 'pcv', 'wc', 'rc', 'htn', 'dm', 'cad', 'appet', 'pe', 'ane', 'classification']
+
+        # Memeriksa kolom mana yang ada dalam dataset
+        valid_categorical_columns = [col for col in categorical_columns if col in data.columns]
+
+        # Melakukan One-Hot Encoding hanya pada kolom yang valid
+        if valid_categorical_columns:
+            new_df = pd.get_dummies(data, columns=valid_categorical_columns, drop_first=True)
         else:
-            data[col] = data[col].astype(str)  # Ubah kolom kategori menjadi string
+            st.error("Tidak ada kolom kategorikal yang valid ditemukan untuk encoding.")
 
-    # Kolom-kolom kategorikal yang ingin diencoding
-    categorical_columns = ['rbc', 'pc', 'pcc', 'ba', 'pcv', 'wc', 'rc', 'htn', 'dm', 'cad', 'appet', 'pe', 'ane', 'classification']
+        # Mengonversi kolom kategorikal menjadi numerik menggunakan LabelEncoder jika diperlukan
+        label_encoder = LabelEncoder()
+        binary_columns = ['htn', 'dm', 'cad', 'appet', 'pe', 'ane', 'classification']
+        for col in binary_columns:
+            new_df[col] = label_encoder.fit_transform(new_df[col])
 
-    # Memeriksa kolom mana yang ada dalam dataset
-    valid_categorical_columns = [col for col in categorical_columns if col in data.columns]
+        # Pastikan data tidak memiliki nilai NaN
+        numerical_columns = new_df.select_dtypes(include=['float64']).columns
+        new_df[numerical_columns] = new_df[numerical_columns].fillna(0)
 
-    # Melakukan One-Hot Encoding hanya pada kolom yang valid
-    if valid_categorical_columns:
-        new_df = pd.get_dummies(data, columns=valid_categorical_columns, drop_first=True)
-    else:
-        st.error("Tidak ada kolom kategorikal yang valid ditemukan untuk encoding.")
+        st.subheader("Data Setelah One-Hot Encoding dan Penanganan Missing Value")
+        st.dataframe(new_df)
 
-    # Mengonversi kolom kategorikal menjadi numerik menggunakan LabelEncoder jika diperlukan
-    label_encoder = LabelEncoder()
-    binary_columns = ['htn', 'dm', 'cad', 'appet', 'pe', 'ane', 'classification']
-    for col in binary_columns:
-        new_df[col] = label_encoder.fit_transform(new_df[col])
+        corr_matrix = new_df.corr()
+        Dependent_corr = corr_matrix.get('classification', pd.Series())
+        Imp_features = Dependent_corr[Dependent_corr.abs() > 0.4].index.tolist()
+        if 'id' in Imp_features:
+            Imp_features.remove('id')
 
-    # Pastikan data tidak memiliki nilai NaN
-    numerical_columns = new_df.select_dtypes(include=['float64']).columns
-    new_df[numerical_columns] = new_df[numerical_columns].fillna(0)
+        st.subheader("Fitur yang Dipilih Berdasarkan Korelasi")
+        st.write(Imp_features if Imp_features else "Tidak ada fitur yang memenuhi syarat korelasi.")
 
-    st.subheader("Data Setelah One-Hot Encoding dan Penanganan Missing Value")
-    st.dataframe(new_df)
+        # Pastikan new_df dan Imp_features tidak None atau kosong
+        if new_df is not None and Imp_features:
+            # Pastikan kolom target 'classification' ada di dalam new_df
+            if 'classification' in new_df.columns:
+                X = new_df[Imp_features]  # Mengambil fitur penting berdasarkan korelasi
+                y = new_df['classification']  # Kolom target
+                
+                # Tampilkan sampel data untuk validasi
+                st.write("Contoh Data Fitur (X):")
+                st.dataframe(X.head())
 
-    corr_matrix = new_df.corr()
-    Dependent_corr = corr_matrix.get('classification', pd.Series())
-    Imp_features = Dependent_corr[Dependent_corr.abs() > 0.4].index.tolist()
-    if 'id' in Imp_features:
-        Imp_features.remove('id')
-
-    st.subheader("Fitur yang Dipilih Berdasarkan Korelasi")
-    st.write(Imp_features if Imp_features else "Tidak ada fitur yang memenuhi syarat korelasi.")
-
-    # Pastikan new_df dan Imp_features tidak None atau kosong
-    if new_df is not None and Imp_features:
-        # Pastikan kolom target 'classification' ada di dalam new_df
-        if 'classification' in new_df.columns:
-            X = new_df[Imp_features]  # Mengambil fitur penting berdasarkan korelasi
-            y = new_df['classification']  # Kolom target
-            
-            # Tampilkan sampel data untuk validasi
-            st.write("Contoh Data Fitur (X):")
-            st.dataframe(X.head())
-
-            st.write("Contoh Data Target (y):")
-            st.dataframe(y.head())
+                st.write("Contoh Data Target (y):")
+                st.dataframe(y.head())
+            else:
+                st.error("Kolom 'classification' tidak ditemukan dalam dataset.")
         else:
-            st.error("Kolom 'classification' tidak ditemukan dalam dataset.")
-    else:
-        st.error("Data preprocessing belum selesai atau tidak ada fitur penting yang terdeteksi.")
+            st.error("Data preprocessing belum selesai atau tidak ada fitur penting yang terdeteksi.")
 
     # Halaman Modeling
     elif page == "Modeling":
@@ -223,20 +222,17 @@ elif page == "Preprocessing":
         # Evaluasi
         st.subheader("Hasil Evaluasi")
         accuracy = accuracy_score(y_test, y_pred)
-        st.write(f"**Akurasi:** {accuracy:.2f}")
-
-        st.subheader("Classification Report")
-        report = classification_report(y_test, y_pred)
-        st.text(report)
-
+        st.write(f"Accuracy: {accuracy * 100:.2f}%")
+        st.text("Classification Report:")
+        st.text(classification_report(y_test, y_pred))
+        
         st.subheader("Confusion Matrix")
         cm = confusion_matrix(y_test, y_pred)
         fig, ax = plt.subplots()
-        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", cbar=False, ax=ax)
-        plt.xlabel('Predicted')
-        plt.ylabel('True')
+        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=["Negatif", "Positif"], yticklabels=["Negatif", "Positif"])
+        plt.xlabel("Predicted")
+        plt.ylabel("Actual")
         st.pyplot(fig)
 
-# Jalankan aplikasi
 if __name__ == "__main__":
     main()
