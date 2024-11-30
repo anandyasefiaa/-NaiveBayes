@@ -155,34 +155,35 @@ def main():
         numerical_columns = new_df.select_dtypes(include=['float64']).columns
         new_df[numerical_columns] = new_df[numerical_columns].fillna(0)
 
-        # Convert all columns to appropriate types for Arrow compatibility
-        numerical_cols = new_df.select_dtypes(include=['object', 'int64', 'float64']).columns
-        for col in numerical_cols:
-            if new_df[col].dtype == 'object':
-                new_df[col] = pd.to_numeric(new_df[col], errors='coerce')
-
-        # Ensure any categorical columns are of type 'category'
-        categorical_cols = new_df.select_dtypes(include=['object']).columns
-        for col in categorical_cols:
-            new_df[col] = new_df[col].astype(str)  # Convert to string if not already
-
-        # Double-check if any columns contain mixed types that still can't be converted
-        new_df = new_df.apply(pd.to_numeric, errors='coerce')
-
-        # Fill NaN values after conversion if necessary
-        new_df.fillna(0, inplace=True)
-
-        st.subheader("Data Setelah Perbaikan Tipe dan Imputasi Missing Value")
+        st.subheader("Data Setelah One-Hot Encoding dan Penanganan Missing Value")
         st.dataframe(new_df)
 
         corr_matrix = new_df.corr()
         Dependent_corr = corr_matrix.get('classification', pd.Series())
-        Imp_features = Dependent_corr[Dependent_corr.abs() > 0].index.tolist()
+        Imp_features = Dependent_corr[Dependent_corr.abs() > 0.4].index.tolist()
         if 'id' in Imp_features:
             Imp_features.remove('id')
 
         st.subheader("Fitur yang Dipilih Berdasarkan Korelasi")
         st.write(Imp_features if Imp_features else "Tidak ada fitur yang memenuhi syarat korelasi.")
+
+        # Pastikan new_df dan Imp_features tidak None atau kosong
+        if new_df is not None and Imp_features:
+            # Pastikan kolom target 'classification' ada di dalam new_df
+            if 'classification' in new_df.columns:
+                X = new_df[Imp_features]  # Mengambil fitur penting berdasarkan korelasi
+                y = new_df['classification']  # Kolom target
+                
+                # Tampilkan sampel data untuk validasi
+                st.write("Contoh Data Fitur (X):")
+                st.dataframe(X.head())
+
+                st.write("Contoh Data Target (y):")
+                st.dataframe(y.head())
+            else:
+                st.error("Kolom 'classification' tidak ditemukan dalam dataset.")
+        else:
+            st.error("Data preprocessing belum selesai atau tidak ada fitur penting yang terdeteksi.")
 
     # Halaman Modeling
     elif page == "Modeling":
@@ -217,26 +218,34 @@ def main():
         st.header("Evaluasi Model")
 
         if 'model' not in st.session_state:
-            st.error("Model belum dilatih!")
+            st.error("Harap latih model terlebih dahulu!")
             return
 
         model = st.session_state['model']
         X_test = st.session_state['X_test']
         y_test = st.session_state['y_test']
 
+        # Prediksi
         y_pred = model.predict(X_test)
-        accuracy = accuracy_score(y_test, y_pred)
 
+        # Hasil Evaluasi
         st.subheader("Akurasi Model")
-        st.write(f"Akurasi: {accuracy * 100:.2f}%")
+        accuracy = accuracy_score(y_test, y_pred)
+        st.write(f"Akurasi: {accuracy:.4f}")
 
-        st.subheader("Classification Report")
+        st.subheader("Laporan Klasifikasi")
         st.text(classification_report(y_test, y_pred))
 
-        st.subheader("Confusion Matrix")
+        st.subheader("Matriks Kebingungungan")
         cm = confusion_matrix(y_test, y_pred)
-        fig, ax = plt.subplots()
-        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", ax=ax)
+        st.write(cm)
+
+        # Plot Confusion Matrix
+        fig, ax = plt.subplots(figsize=(8, 6))
+        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", cbar=False, ax=ax)
+        ax.set_xlabel('Predicted')
+        ax.set_ylabel('Actual')
+        ax.set_title("Confusion Matrix")
         st.pyplot(fig)
 
 if __name__ == "__main__":
