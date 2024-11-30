@@ -92,89 +92,57 @@ def main():
         st.write(data.dtypes)
 
         # Menampilkan data sebelum preprocessing
-        st.write("Data sebelum preprocessing:")
+        st.write("Data sebelum preprocessing: ")
         st.dataframe(data.head())
 
-        if 'rbc' in data.columns:
-            data = data.drop('rbc', axis=1)
-
+        # Imputasi missing values untuk kolom numerik dan kategorikal
         imputer_mean = SimpleImputer(strategy='mean')
         imputer_mode = SimpleImputer(strategy='most_frequent')
 
-        # Memperbaiki imputasi berdasarkan tipe data
+        # Menangani missing value kolom numerik
         for col in high_missing_cols.index:
-            if col in data.columns:
-                if data[col].dtype in ['float64', 'int64']:  # Periksa tipe data numerik
-                    sample_values = data[col].dropna().sample(data[col].isnull().sum(), replace=True).values
-                    data.loc[data[col].isnull(), col] = sample_values
-                else:
-                    st.warning(f"Kolom {col} tidak numerik, dan tidak dapat diisi dengan imputasi numerik.")
+            if data[col].dtype in ['float64', 'int64']:
+                sample_values = data[col].dropna().sample(data[col].isnull().sum(), replace=True).values
+                data.loc[data[col].isnull(), col] = sample_values
+            else:
+                st.warning(f"Kolom {col} tidak numerik, dan tidak dapat diisi dengan imputasi numerik.")
 
         for col in low_missing_cols.index:
-            if col in data.columns:
-                if data[col].dtype in ['float64', 'int64']:
-                    data[col] = imputer_mean.fit_transform(data[[col]]).flatten()
-                else:
-                    data[col] = imputer_mode.fit_transform(data[[col]]).flatten()
-                
-        # Pastikan untuk menangani kategori dengan benar
-        for col in data.select_dtypes(include=['object']).columns:
-            if col in ['wc', 'rc']:  # Tambahkan kolom ini pada pengecekan
-                data[col] = imputer_mode.fit_transform(data[[col]]).flatten()  # Gunakan imputasi modus
+            if data[col].dtype in ['float64', 'int64']:
+                data[col] = imputer_mean.fit_transform(data[[col]]).flatten()
             else:
-                data[col] = data[col].astype(str)  # Ubah kolom kategori menjadi string
+                data[col] = imputer_mode.fit_transform(data[[col]]).flatten()
+        
+        # Pastikan kolom kategorikal ditangani
+        for col in ['wc', 'rc']:  # Kolom kategorikal yang harus di-imputasi
+            if col in data.columns:
+                data[col] = imputer_mode.fit_transform(data[[col]]).flatten()
 
-        # Kolom-kolom kategorikal yang ingin diencoding
+        # Melakukan One-Hot Encoding
         categorical_columns = ['rbc', 'pc', 'pcc', 'ba', 'pcv', 'wc', 'rc', 'htn', 'dm', 'cad', 'appet', 'pe', 'ane', 'classification']
-
-        # Memeriksa kolom mana yang ada dalam dataset
         valid_categorical_columns = [col for col in categorical_columns if col in data.columns]
 
-        # Melakukan One-Hot Encoding hanya pada kolom yang valid
         if valid_categorical_columns:
             new_df = pd.get_dummies(data, columns=valid_categorical_columns, drop_first=True)
         else:
             st.error("Tidak ada kolom kategorikal yang valid ditemukan untuk encoding.")
 
-        # Mengonversi kolom kategorikal menjadi numerik menggunakan LabelEncoder jika diperlukan
+        # Konversi kolom biner menggunakan LabelEncoder
         label_encoder = LabelEncoder()
         binary_columns = ['htn', 'dm', 'cad', 'appet', 'pe', 'ane', 'classification']
         
-        # Pastikan hanya kolom yang valid ada di dataset
-        valid_binary_columns = [col for col in binary_columns if col in new_df.columns]
-
-        for col in valid_binary_columns:
-            new_df[col] = label_encoder.fit_transform(new_df[col])
-
-        # Kolom 'wc' dan 'rc' sudah ada di dalam dataset dan perlu imputasi menggunakan modus
-        for col in ['wc', 'rc']:
+        for col in binary_columns:
             if col in new_df.columns:
-                new_df[col] = imputer_mode.fit_transform(new_df[[col]]).flatten()
+                new_df[col] = label_encoder.fit_transform(new_df[col])
 
-        # Pastikan data tidak memiliki nilai NaN setelah imputasi
-        numerical_columns = new_df.select_dtypes(include=['float64']).columns
-        new_df[numerical_columns] = new_df[numerical_columns].fillna(0)
-
-        # Convert all columns to appropriate types for Arrow compatibility
-        numerical_cols = new_df.select_dtypes(include=['object', 'int64', 'float64']).columns
-        for col in numerical_cols:
-            if new_df[col].dtype == 'object':
-                new_df[col] = pd.to_numeric(new_df[col], errors='coerce')
-
-        # Ensure any categorical columns are of type 'category'
-        categorical_cols = new_df.select_dtypes(include=['object']).columns
-        for col in categorical_cols:
-            new_df[col] = new_df[col].astype(str)  # Convert to string if not already
-
-        # Double-check if any columns contain mixed types that still can't be converted
+        # Imputasi lagi untuk menghindari NaN pada data numerik
         new_df = new_df.apply(pd.to_numeric, errors='coerce')
-
-        # Fill NaN values after conversion if necessary
         new_df.fillna(0, inplace=True)
 
         st.subheader("Data Setelah Perbaikan Tipe dan Imputasi Missing Value")
         st.dataframe(new_df)
 
+        # Memilih fitur yang relevan berdasarkan korelasi
         corr_matrix = new_df.corr()
         Dependent_corr = corr_matrix.get('classification', pd.Series())
         Imp_features = Dependent_corr[Dependent_corr.abs() < 0.4].index.tolist()
@@ -184,17 +152,16 @@ def main():
         st.subheader("Fitur yang Dipilih Berdasarkan Korelasi")
         st.write(Imp_features if Imp_features else "Tidak ada fitur yang memenuhi syarat korelasi.")
 
-    # Halaman Modeling
     elif page == "Modeling":
         st.header("Pelatihan Model")
 
         if new_df is None or Imp_features is None:
             st.error("Silakan lakukan preprocessing terlebih dahulu!")
             return
-        
+
         X = new_df[Imp_features]
-        y = new_df['classification']  # Ensure this is the target column
-        
+        y = new_df['classification']  # Target column
+
         st.subheader("Pilih Model")
         model_type = st.selectbox("Model", ["Naive Bayes", "Decision Tree"])
 
@@ -204,13 +171,11 @@ def main():
             model = DecisionTreeClassifier()
 
         model.fit(X, y)
-
         st.session_state['model'] = model
         st.session_state['X_test'], st.session_state['y_test'] = train_test_split(X, y, test_size=0.2, random_state=42)
 
         st.success(f"Model {model_type} berhasil dilatih!")
 
-    # Halaman Evaluasi
     elif page == "Evaluasi":
         st.header("Evaluasi Model")
 
