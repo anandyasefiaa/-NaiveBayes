@@ -146,15 +146,23 @@ def main():
         for col in valid_binary_columns:
             new_df[col] = label_encoder.fit_transform(new_df[col])
 
-        # Kolom 'wc' dan 'rc' sudah ada di dalam dataset dan perlu imputasi menggunakan modus
+        # Pastikan kolom wc dan rc adalah tipe kategori dan isi dengan modus jika diperlukan
         for col in ['wc', 'rc']:
             if col in new_df.columns:
-                # Ubah kolom ke numerik jika perlu
-                new_df[col] = pd.to_numeric(new_df[col], errors='coerce')  # 'coerce' akan mengganti nilai non-numeric menjadi NaN
-                
-                # Terapkan imputasi modus (mode imputation)
-                new_df[col] = imputer_mode.fit_transform(new_df[[col]]).flatten()
+                if new_df[col].dtype == 'object':  # Jika kolom adalah kategori (string)
+                    # Imputasi dengan modus (nilai yang paling sering muncul)
+                    new_df[col] = imputer_mode.fit_transform(new_df[[col]]).flatten()
+                else:
+                    # Jika kolom sudah numerik, lanjutkan dengan imputasi mean atau modus
+                    new_df[col] = imputer_mode.fit_transform(new_df[[col]]).flatten()
 
+        # Jika tipe data masih string atau kategori setelah imputasi, ubah menjadi numerik jika perlu
+        for col in ['wc', 'rc']:
+            if col in new_df.columns and new_df[col].dtype == 'object':
+                new_df[col] = new_df[col].astype(str)  # Mengubah menjadi string jika perlu
+                # Terapkan Label Encoding untuk mengonversi menjadi nilai numerik
+                new_df[col] = label_encoder.fit_transform(new_df[col])
+    
         # Pastikan data tidak memiliki nilai NaN setelah imputasi
         numerical_columns = new_df.select_dtypes(include=['float64']).columns
         new_df[numerical_columns] = new_df[numerical_columns].fillna(0)
