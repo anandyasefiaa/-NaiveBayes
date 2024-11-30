@@ -60,7 +60,7 @@ def main():
 
     elif page == "Preprocessing":
     st.header("Penanganan Missing Value")
-    
+
     col1, col2 = st.columns([3, 2])
 
     with col1:
