@@ -170,16 +170,23 @@ def main():
         # Pastikan new_df dan Imp_features tidak None atau kosong
         if new_df is not None and Imp_features:
             # Pastikan kolom target 'classification' ada di dalam new_df
+            # Pastikan kolom 'classification' ada dalam new_df
             if 'classification' in new_df.columns:
-                X = new_df[Imp_features]  # Mengambil fitur penting berdasarkan korelasi
-                y = new_df['classification']  # Kolom target
-                
-                # Tampilkan sampel data untuk validasi
-                st.write("Contoh Data Fitur (X):")
-                st.dataframe(X.head())
-
-                st.write("Contoh Data Target (y):")
-                st.dataframe(y.head())
+                corr_matrix = new_df.corr()
+                Dependent_corr = corr_matrix.get('classification', pd.Series())
+            
+                # Filter fitur dengan korelasi > 0.4
+                Imp_features = Dependent_corr[Dependent_corr.abs() > 0.4].index.tolist()
+            
+                # Menghapus 'id' jika ada dalam fitur yang dipilih
+                if 'id' in Imp_features:
+                    Imp_features.remove('id')
+            
+                if Imp_features:
+                    st.subheader("Fitur yang Dipilih Berdasarkan Korelasi")
+                    st.write(Imp_features)
+                else:
+                    st.write("Tidak ada fitur yang memenuhi syarat korelasi.")
             else:
                 st.error("Kolom 'classification' tidak ditemukan dalam dataset.")
         else:
