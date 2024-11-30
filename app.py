@@ -175,8 +175,8 @@ def main():
                 corr_matrix = new_df.corr()
                 Dependent_corr = corr_matrix.get('classification', pd.Series())
             
-                # Filter fitur dengan korelasi > 0.4
-                Imp_features = Dependent_corr[Dependent_corr.abs() > 0.4].index.tolist()
+                # Filter fitur dengan korelasi > 0.2
+                Imp_features = Dependent_corr[Dependent_corr.abs() > 0.2].index.tolist()
             
                 # Menghapus 'id' jika ada dalam fitur yang dipilih
                 if 'id' in Imp_features:
