@@ -146,31 +146,33 @@ def main():
         for col in valid_binary_columns:
             new_df[col] = label_encoder.fit_transform(new_df[col])
 
-        # --- FIXED CODE ---  
-        # Pastikan kolom wc dan rc adalah tipe kategori dan isi dengan modus jika diperlukan
+        # Kolom 'wc' dan 'rc' sudah ada di dalam dataset dan perlu imputasi menggunakan modus
         for col in ['wc', 'rc']:
             if col in new_df.columns:
-                if new_df[col].dtype == 'object':  # Jika kolom adalah kategori (string)
-                    # Imputasi dengan modus (nilai yang paling sering muncul)
-                    new_df[col] = imputer_mode.fit_transform(new_df[[col]]).flatten()
-                else:
-                    # Jika kolom sudah numerik, lanjutkan dengan imputasi mean atau modus
-                    new_df[col] = imputer_mode.fit_transform(new_df[[col]]).flatten()
-
-        # Jika tipe data masih string atau kategori setelah imputasi, ubah menjadi numerik jika perlu
-        for col in ['wc', 'rc']:
-            if col in new_df.columns and new_df[col].dtype == 'object':
-                new_df[col] = new_df[col].astype(str)  # Mengubah menjadi string jika perlu
-                # Terapkan Label Encoding untuk mengonversi menjadi nilai numerik
-                new_df[col] = label_encoder.fit_transform(new_df[col])
+                new_df[col] = imputer_mode.fit_transform(new_df[[col]]).flatten()
 
         # Pastikan data tidak memiliki nilai NaN setelah imputasi
         numerical_columns = new_df.select_dtypes(include=['float64']).columns
         new_df[numerical_columns] = new_df[numerical_columns].fillna(0)
 
-        # --- END OF FIXED CODE ---
+        # Convert all columns to appropriate types for Arrow compatibility
+        numerical_cols = new_df.select_dtypes(include=['object', 'int64', 'float64']).columns
+        for col in numerical_cols:
+            if new_df[col].dtype == 'object':
+                new_df[col] = pd.to_numeric(new_df[col], errors='coerce')
 
-        st.subheader("Data Setelah One-Hot Encoding dan Penanganan Missing Value")
+        # Ensure any categorical columns are of type 'category'
+        categorical_cols = new_df.select_dtypes(include=['object']).columns
+        for col in categorical_cols:
+            new_df[col] = new_df[col].astype(str)  # Convert to string if not already
+
+        # Double-check if any columns contain mixed types that still can't be converted
+        new_df = new_df.apply(pd.to_numeric, errors='coerce')
+
+        # Fill NaN values after conversion if necessary
+        new_df.fillna(0, inplace=True)
+
+        st.subheader("Data Setelah Perbaikan Tipe dan Imputasi Missing Value")
         st.dataframe(new_df)
 
         corr_matrix = new_df.corr()
@@ -182,33 +184,60 @@ def main():
         st.subheader("Fitur yang Dipilih Berdasarkan Korelasi")
         st.write(Imp_features if Imp_features else "Tidak ada fitur yang memenuhi syarat korelasi.")
 
-        # Pastikan new_df dan Imp_features tidak None atau kosong
-        if new_df is not None and Imp_features:
-            # Pastikan kolom target 'classification' ada di dalam new_df
-            # Pastikan kolom 'classification' ada dalam new_df
-            if 'classification' in new_df.columns:
-                corr_matrix = new_df.corr()
-                Dependent_corr = corr_matrix.get('classification', pd.Series())
-            
-                # Filter fitur dengan korelasi > 0.2
-                Imp_features = Dependent_corr[Dependent_corr.abs() > 0.01].index.tolist()
-            
-                # Menghapus 'id' jika ada dalam fitur yang dipilih
-                if 'id' in Imp_features:
-                    Imp_features.remove('id')
-            
-                if Imp_features:
-                    st.subheader("Fitur yang Dipilih Berdasarkan Korelasi")
-                    st.write(Imp_features)
-                else:
-                    st.write("Tidak ada fitur yang memenuhi syarat korelasi.")
-            else:
-                st.error("Kolom 'classification' tidak ditemukan dalam dataset.")
-        else:
-            st.error("Data preprocessing belum selesai atau tidak ada fitur penting yang terdeteksi.")
+    # Halaman Modeling
+    elif page == "Modeling":
+        st.header("Modeling")
 
-    # Halaman Modeling dan Evaluasi dapat diikuti di bawah ini...
-    
-# Jalankan aplikasi Streamlit
+        if X is None or y is None:
+            st.error("Harap lakukan preprocessing terlebih dahulu!")
+            return
+
+        # Split Data
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+        # Pilih Model
+        model_type = st.selectbox("Pilih Model", ["Naive Bayes", "Decision Tree"])
+
+        if model_type == "Naive Bayes":
+            model = GaussianNB()
+        elif model_type == "Decision Tree":
+            model = DecisionTreeClassifier()
+
+        # Latih Model
+        model.fit(X_train, y_train)
+        st.success(f"Model {model_type} berhasil dilatih!")
+
+        # Simpan Model untuk Evaluasi
+        st.session_state['model'] = model
+        st.session_state['X_test'] = X_test
+        st.session_state['y_test'] = y_test
+
+    # Halaman Evaluasi
+    elif page == "Evaluasi":
+        st.header("Evaluasi Model")
+
+        if 'model' not in st.session_state:
+            st.error("Model belum dilatih!")
+            return
+
+        model = st.session_state['model']
+        X_test = st.session_state['X_test']
+        y_test = st.session_state['y_test']
+
+        y_pred = model.predict(X_test)
+        accuracy = accuracy_score(y_test, y_pred)
+
+        st.subheader("Akurasi Model")
+        st.write(f"Akurasi: {accuracy * 100:.2f}%")
+
+        st.subheader("Classification Report")
+        st.text(classification_report(y_test, y_pred))
+
+        st.subheader("Confusion Matrix")
+        cm = confusion_matrix(y_test, y_pred)
+        fig, ax = plt.subplots()
+        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", ax=ax)
+        st.pyplot(fig)
+
 if __name__ == "__main__":
     main()
