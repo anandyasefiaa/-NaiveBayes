@@ -9,6 +9,7 @@ from io import StringIO
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
+from sklearn.preprocessing import LabelEncoder
 
 # Fungsi Utama
 def main():
@@ -85,12 +86,12 @@ def main():
         with col4:
             st.subheader("Kolom dengan Missing Value Rendah (<=20%)")
             st.write(low_missing_cols if not low_missing_cols.empty else "Tidak ada.")
-
-        # Debugging: Menampilkan tipe data setiap kolom
+        
+        # Menampilkan tipe data setiap kolom
         st.write("Tipe data setiap kolom:")
         st.write(data.dtypes)
 
-        # Debugging: Menampilkan data sebelum preprocessing
+        # Menampilkan data sebelum preprocessing
         st.write("Data sebelum preprocessing:")
         st.dataframe(data.head())
 
@@ -115,22 +116,33 @@ def main():
                     data[col] = imputer_mean.fit_transform(data[[col]]).flatten()
                 else:
                     data[col] = imputer_mode.fit_transform(data[[col]]).flatten()
-
-        # Pastikan untuk menangani kategori dengan benar:
+                    
+        # Pastikan untuk menangani kategori dengan benar
         for col in data.select_dtypes(include=['object']).columns:
             if col in ['wc', 'rc']:  # Tambahkan kolom ini pada pengecekan
                 data[col] = imputer_mode.fit_transform(data[[col]]).flatten()  # Gunakan imputasi modus
             else:
                 data[col] = data[col].astype(str)  # Ubah kolom kategori menjadi string
 
-        new_df = pd.get_dummies(data, drop_first=True)
-        new_df[new_df.columns[new_df.dtypes == bool]] = new_df[new_df.columns[new_df.dtypes == bool]].astype(int)
+        # One-hot encoding untuk kolom kategorikal
+        categorical_columns = ['rbc', 'pc', 'pcc', 'ba', 'pcv', 'wc', 'rc', 'htn', 'dm', 'cad', 'appet', 'pe', 'ane', 'classification']
+        new_df = pd.get_dummies(data, columns=categorical_columns, drop_first=True)
+
+        # Mengonversi kolom kategorikal menjadi numerik menggunakan LabelEncoder jika diperlukan
+        label_encoder = LabelEncoder()
+        binary_columns = ['htn', 'dm', 'cad', 'appet', 'pe', 'ane', 'classification']
+        for col in binary_columns:
+            new_df[col] = label_encoder.fit_transform(new_df[col])
+
+        # Pastikan data tidak memiliki nilai NaN
+        numerical_columns = new_df.select_dtypes(include=['float64']).columns
+        new_df[numerical_columns] = new_df[numerical_columns].fillna(0)
 
         st.subheader("Data Setelah One-Hot Encoding dan Penanganan Missing Value")
         st.dataframe(new_df)
 
         corr_matrix = new_df.corr()
-        Dependent_corr = corr_matrix.get('classification_notckd', pd.Series())
+        Dependent_corr = corr_matrix.get('classification', pd.Series())
         Imp_features = Dependent_corr[Dependent_corr.abs() > 0.4].index.tolist()
         if 'id' in Imp_features:
             Imp_features.remove('id')
@@ -140,11 +152,11 @@ def main():
 
         # Pastikan new_df dan Imp_features tidak None atau kosong
         if new_df is not None and Imp_features:
-            # Pastikan kolom target 'classification_notckd' ada di dalam new_df
-            if 'classification_notckd' in new_df.columns:
+            # Pastikan kolom target 'classification' ada di dalam new_df
+            if 'classification' in new_df.columns:
                 X = new_df[Imp_features]  # Mengambil fitur penting berdasarkan korelasi
-                y = new_df['classification_notckd']  # Kolom target
-
+                y = new_df['classification']  # Kolom target
+                
                 # Tampilkan sampel data untuk validasi
                 st.write("Contoh Data Fitur (X):")
                 st.dataframe(X.head())
@@ -152,7 +164,7 @@ def main():
                 st.write("Contoh Data Target (y):")
                 st.dataframe(y.head())
             else:
-                st.error("Kolom 'classification_notckd' tidak ditemukan dalam dataset.")
+                st.error("Kolom 'classification' tidak ditemukan dalam dataset.")
         else:
             st.error("Data preprocessing belum selesai atau tidak ada fitur penting yang terdeteksi.")
 
@@ -205,17 +217,17 @@ def main():
         st.write(f"**Akurasi:** {accuracy:.2f}")
 
         st.subheader("Classification Report")
-        report = classification_report(y_test, y_pred, output_dict=True)
-        st.dataframe(pd.DataFrame(report).T)
+        report = classification_report(y_test, y_pred)
+        st.text(report)
 
         st.subheader("Confusion Matrix")
-        conf_matrix = confusion_matrix(y_test, y_pred)
-        st.write(conf_matrix)
-
-        # Visualisasi Confusion Matrix
+        cm = confusion_matrix(y_test, y_pred)
         fig, ax = plt.subplots()
-        sns.heatmap(conf_matrix, annot=True, fmt='d', cmap='Blues', ax=ax)
+        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", cbar=False, ax=ax)
+        plt.xlabel('Predicted')
+        plt.ylabel('True')
         st.pyplot(fig)
 
-if __name__ == '__main__':
+# Jalankan aplikasi
+if __name__ == "__main__":
     main()
