@@ -115,10 +115,13 @@ def main():
                     data[col] = imputer_mean.fit_transform(data[[col]]).flatten()
                 else:
                     data[col] = imputer_mode.fit_transform(data[[col]]).flatten()
-        
+                    
         # Pastikan untuk menangani kategori dengan benar:
         for col in data.select_dtypes(include=['object']).columns:
-            data[col] = data[col].astype(str)  # Ubah kolom kategori menjadi string
+            if col in ['wc', 'rc']:  # Tambahkan kolom ini pada pengecekan
+                data[col] = imputer_mode.fit_transform(data[[col]]).flatten()  # Gunakan imputasi modus
+            else:
+                data[col] = data[col].astype(str)  # Ubah kolom kategori menjadi string
 
         new_df = pd.get_dummies(data, drop_first=True)
         new_df[new_df.columns[new_df.dtypes == bool]] = new_df[new_df.columns[new_df.dtypes == bool]].astype(int)
