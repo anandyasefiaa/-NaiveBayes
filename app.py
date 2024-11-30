@@ -58,58 +58,100 @@ def main():
         s = buffer.getvalue()
         st.text(s)
 
-    # Halaman Preprocessing
     elif page == "Preprocessing":
-        st.header("Preprocessing Data")
+    st.header("Penanganan Missing Value")
+    
+    col1, col2 = st.columns([3, 2])
 
-        col1, col2 = st.columns([3, 2])
+    with col1:
+        st.subheader("Data Asli")
+        st.dataframe(data, width=1000, height=400)
 
-        with col1:
-            st.subheader("Data Asli")
-            st.dataframe(data)
+    with col2:
+        st.subheader("Total Missing Value per Kolom")
+        missing_values = data.isnull().sum()
+        st.dataframe(missing_values.rename("Jumlah Missing Value"))
 
-        with col2:
-            st.subheader("Jumlah Missing Values per Kolom")
-            missing_values = data.isnull().sum()
-            st.dataframe(missing_values.rename("Missing Values"))
+    missing_proportions = data.isnull().mean()
+    high_missing_cols = missing_proportions[missing_proportions > 0.2]
+    low_missing_cols = missing_proportions[(missing_proportions > 0) & (missing_proportions <= 0.2)]
 
-        # Handle Missing Values
-        imputer_mean = SimpleImputer(strategy='mean')
-        imputer_mode = SimpleImputer(strategy='most_frequent')
+    col3, col4 = st.columns(2)
 
-        for col in data.columns:
-            if data[col].isnull().sum() > 0:
-                if data[col].dtype in ['float64', 'int64']:
-                    data[col] = imputer_mean.fit_transform(data[[col]])
-                else:
-                    data[col] = imputer_mode.fit_transform(data[[col]])
+    with col3:
+        st.subheader("Kolom dengan Missing Value Tinggi (>20%)")
+        st.write(high_missing_cols if not high_missing_cols.empty else "Tidak ada.")
 
-        # One-hot Encoding
-        new_df = pd.get_dummies(data, drop_first=True)
-        st.subheader("Data Setelah Preprocessing")
-        st.dataframe(new_df)
+    with col4:
+        st.subheader("Kolom dengan Missing Value Rendah (<=20%)")
+        st.write(low_missing_cols if not low_missing_cols.empty else "Tidak ada.")
+    
+    # Debugging: Menampilkan tipe data setiap kolom
+    st.write("Tipe data setiap kolom:")
+    st.write(data.dtypes)
 
-        # Korelasi dan Fitur Penting
-        st.subheader("Fitur Penting Berdasarkan Korelasi")
-        corr_matrix = new_df.corr()
-        target_corr = corr_matrix.get('classification_notckd', pd.Series())
-        Imp_features = target_corr[target_corr.abs() > 0.4].index.tolist()
+    # Debugging: Menampilkan data sebelum preprocessing
+    st.write("Data sebelum preprocessing:")
+    st.dataframe(data.head())
 
-        if 'id' in Imp_features:
-            Imp_features.remove('id')
+    if 'rbc' in data.columns:
+        data = data.drop('rbc', axis=1)
 
-        st.write(Imp_features if Imp_features else "Tidak ada fitur penting yang ditemukan.")
+    imputer_mean = SimpleImputer(strategy='mean')
+    imputer_mode = SimpleImputer(strategy='most_frequent')
 
-        # Split Features dan Target
-        if Imp_features:
-            X = new_df[Imp_features]
-            y = new_df['classification_notckd']
+    # Memperbaiki imputasi berdasarkan tipe data
+    for col in high_missing_cols.index:
+        if col in data.columns:
+            if data[col].dtype in ['float64', 'int64']:  # Periksa tipe data numerik
+                sample_values = data[col].dropna().sample(data[col].isnull().sum(), replace=True).values
+                data.loc[data[col].isnull(), col] = sample_values
+            else:
+                st.warning(f"Kolom {col} tidak numerik, dan tidak dapat diisi dengan imputasi numerik.")
+
+    for col in low_missing_cols.index:
+        if col in data.columns:
+            if data[col].dtype in ['float64', 'int64']:
+                data[col] = imputer_mean.fit_transform(data[[col]]).flatten()
+            else:
+                data[col] = imputer_mode.fit_transform(data[[col]]).flatten()
+    
+    # Pastikan untuk menangani kategori dengan benar:
+    for col in data.select_dtypes(include=['object']).columns:
+        data[col] = data[col].astype(str)  # Ubah kolom kategori menjadi string
+
+    new_df = pd.get_dummies(data, drop_first=True)
+    new_df[new_df.columns[new_df.dtypes == bool]] = new_df[new_df.columns[new_df.dtypes == bool]].astype(int)
+
+    st.subheader("Data Setelah One-Hot Encoding dan Penanganan Missing Value")
+    st.dataframe(new_df)
+
+    corr_matrix = new_df.corr()
+    Dependent_corr = corr_matrix.get('classification_notckd', pd.Series())
+    Imp_features = Dependent_corr[Dependent_corr.abs() > 0.4].index.tolist()
+    if 'id' in Imp_features:
+        Imp_features.remove('id')
+
+    st.subheader("Fitur yang Dipilih Berdasarkan Korelasi")
+    st.write(Imp_features if Imp_features else "Tidak ada fitur yang memenuhi syarat korelasi.")
+
+    # Pastikan new_df dan Imp_features tidak None atau kosong
+    if new_df is not None and Imp_features:
+        # Pastikan kolom target 'classification_notckd' ada di dalam new_df
+        if 'classification_notckd' in new_df.columns:
+            X = new_df[Imp_features]  # Mengambil fitur penting berdasarkan korelasi
+            y = new_df['classification_notckd']  # Kolom target
+            
+            # Tampilkan sampel data untuk validasi
             st.write("Contoh Data Fitur (X):")
             st.dataframe(X.head())
+
             st.write("Contoh Data Target (y):")
             st.dataframe(y.head())
         else:
-            st.error("Fitur penting tidak ditemukan. Proses berhenti di sini.")
+            st.error("Kolom 'classification_notckd' tidak ditemukan dalam dataset.")
+    else:
+        st.error("Data preprocessing belum selesai atau tidak ada fitur penting yang terdeteksi.")
 
     # Halaman Modeling
     elif page == "Modeling":
