@@ -139,10 +139,19 @@ def main():
         # Mengonversi kolom kategorikal menjadi numerik menggunakan LabelEncoder jika diperlukan
         label_encoder = LabelEncoder()
         binary_columns = ['htn', 'dm', 'cad', 'appet', 'pe', 'ane', 'classification']
-        for col in binary_columns:
+        
+        # Pastikan hanya kolom yang valid ada di dataset
+        valid_binary_columns = [col for col in binary_columns if col in new_df.columns]
+
+        for col in valid_binary_columns:
             new_df[col] = label_encoder.fit_transform(new_df[col])
 
-        # Pastikan data tidak memiliki nilai NaN
+        # Kolom 'wc' dan 'rc' sudah ada di dalam dataset dan perlu imputasi menggunakan modus
+        for col in ['wc', 'rc']:
+            if col in new_df.columns:
+                new_df[col] = imputer_mode.fit_transform(new_df[[col]]).flatten()
+
+        # Pastikan data tidak memiliki nilai NaN setelah imputasi
         numerical_columns = new_df.select_dtypes(include=['float64']).columns
         new_df[numerical_columns] = new_df[numerical_columns].fillna(0)
 
@@ -209,7 +218,7 @@ def main():
         st.header("Evaluasi Model")
 
         if 'model' not in st.session_state:
-            st.error("Harap lakukan modeling terlebih dahulu!")
+            st.error("Harap latih model terlebih dahulu!")
             return
 
         model = st.session_state['model']
@@ -219,19 +228,24 @@ def main():
         # Prediksi
         y_pred = model.predict(X_test)
 
-        # Evaluasi
-        st.subheader("Hasil Evaluasi")
+        # Hasil Evaluasi
+        st.subheader("Akurasi Model")
         accuracy = accuracy_score(y_test, y_pred)
-        st.write(f"Accuracy: {accuracy * 100:.2f}%")
-        st.text("Classification Report:")
+        st.write(f"Akurasi: {accuracy:.4f}")
+
+        st.subheader("Laporan Klasifikasi")
         st.text(classification_report(y_test, y_pred))
-        
-        st.subheader("Confusion Matrix")
+
+        st.subheader("Matriks Kebingungungan")
         cm = confusion_matrix(y_test, y_pred)
-        fig, ax = plt.subplots()
-        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=["Negatif", "Positif"], yticklabels=["Negatif", "Positif"])
-        plt.xlabel("Predicted")
-        plt.ylabel("Actual")
+        st.write(cm)
+
+        # Plot Confusion Matrix
+        fig, ax = plt.subplots(figsize=(8, 6))
+        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", cbar=False, ax=ax)
+        ax.set_xlabel('Predicted')
+        ax.set_ylabel('Actual')
+        ax.set_title("Confusion Matrix")
         st.pyplot(fig)
 
 if __name__ == "__main__":
