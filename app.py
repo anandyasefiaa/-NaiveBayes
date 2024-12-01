@@ -1,206 +1,107 @@
 import streamlit as st
 import pandas as pd
-from sklearn.impute import SimpleImputer
-from sklearn.naive_bayes import GaussianNB
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
-from io import StringIO
-import matplotlib.pyplot as plt
-import seaborn as sns
-import numpy as np
+from sklearn.naive_bayes import GaussianNB
 from sklearn.preprocessing import LabelEncoder
+import numpy as np
 
-# Fungsi Utama
-def main():
-    st.set_page_config(
-        page_title="Klasifikasi Penyakit Gagal Ginjal Kronis",
-        layout="wide",
-        initial_sidebar_state="expanded"
-    )
+# Data Dummy untuk Pelatihan Model
+X_dummy = [[80, 1.01, 3, 2, 1, 120, 40, 1.2, 135, 4.5], 
+           [70, 1.02, 0, 0, 0, 110, 35, 1.0, 140, 4.0]]
+y_dummy = [1, 0]  # 1: CKD, 0: Tidak CKD
 
-    st.markdown("""
-        <style>
-            .main { background-color: #f0f2f6; }
-            h1, h2, h3 { color: #4CAF50; }
-            .stButton>button { background-color: #4CAF50; color: white; }
-        </style>
-    """, unsafe_allow_html=True)
+# Model Decision Tree
+dt_model = DecisionTreeClassifier(random_state=42)
+dt_model.fit(X_dummy, y_dummy)
 
-    st.title("Klasifikasi Penyakit Gagal Ginjal Kronis")
+# Model Naive Bayes
+nb_model = GaussianNB()
+nb_model.fit(X_dummy, y_dummy)
 
-    # Global variables for data sharing
-    global new_df, Imp_features, X, y, model
-    new_df, Imp_features, X, y, model = None, None, None, None, None
-
+# Fungsi untuk melakukan prediksi
+def predict(model, inputs):
     try:
-        data = pd.read_csv('data.csv')
-        st.success("Dataset berhasil dimuat!")
-    except FileNotFoundError:
-        st.error("File 'data.csv' tidak ditemukan. Harap unggah dataset terlebih dahulu.")
-        return
+        # Prediksi berdasarkan model yang dipilih
+        prediction = model.predict([inputs])[0]
+        return prediction
+    except Exception as e:
+        return f"Error: {e}"
 
-    # Sidebar Navigation
-    page = st.sidebar.selectbox("Navigasi", ["Data", "Preprocessing", "Modeling", "Evaluasi"])
+# Struktur Aplikasi Streamlit
+st.set_page_config(
+    page_title="Prediksi Penyakit Gagal Ginjal",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-    # Halaman Data
-    if page == "Data":
-        st.header("Data Gagal Ginjal Kronis")
+# Sidebar Navigasi
+st.sidebar.title("Navigasi")
+tabs = st.sidebar.radio("Pages", ["Home", "Prediction", "Visualisation"])
 
-        st.subheader("Data Asli")
-        st.dataframe(data, height=400)
+if tabs == "Home":
+    # Halaman Utama
+    st.title("Home")
+    st.write("""
+    Selamat datang di aplikasi prediksi penyakit gagal ginjal kronis!
+    Aplikasi ini menggunakan model machine learning untuk memprediksi
+    kemungkinan seseorang menderita gagal ginjal kronis (Chronic Kidney Disease - CKD)
+    berdasarkan data medis yang Anda masukkan.
+    """)
 
-        st.subheader("Dimensi Data")
-        st.write(f"Jumlah Baris dan Kolom: {data.shape}")
+elif tabs == "Prediction":
+    # Halaman Prediction
+    st.title("Halaman Prediksi")
 
-        st.subheader("Informasi Data")
-        buffer = StringIO()
-        data.info(buf=buffer)
-        s = buffer.getvalue()
-        st.text(s)
+    st.subheader("Masukkan Data untuk Prediksi")
+    st.markdown("""
+    **Catatan:** Semua nilai harus diisi untuk melakukan prediksi.
+    """)
 
-    elif page == "Preprocessing":
-        st.header("Penanganan Missing Value")
+    # Input Form untuk Prediksi
+    col1, col2 = st.columns(2)
+    with col1:
+        bp = st.number_input("Tekanan Darah (bp)", min_value=0, max_value=200, value=80, step=1)
+        sg = st.number_input("Kerapatan Urin (sg)", min_value=1.0, max_value=1.05, value=1.02, step=0.01)
+        al = st.number_input("Albumin Urin (al)", min_value=0, max_value=10, value=1, step=1)
+        su = st.number_input("Gula Urin (su)", min_value=0, max_value=10, value=0, step=1)
+        rbc = st.selectbox("Sel Darah Merah (rbc)", options=[0, 1], format_func=lambda x: "Abnormal" if x == 1 else "Normal")
+    with col2:
+        bgr = st.number_input("Glukosa Darah Acak (bgr)", min_value=50, max_value=500, value=150, step=1)
+        bu = st.number_input("Urea Darah (bu)", min_value=0, max_value=200, value=30, step=1)
+        sc = st.number_input("Serum Kreatinin (sc)", min_value=0.0, max_value=15.0, value=1.0, step=0.1)
+        sod = st.number_input("Sodium (sod)", min_value=100, max_value=200, value=140, step=1)
+        pot = st.number_input("Potassium (pot)", min_value=1.0, max_value=10.0, value=4.5, step=0.1)
 
-        col1, col2 = st.columns([3, 2])
+    # Pilihan Model
+    st.subheader("Pilih Model")
+    model_choice = st.radio("Model untuk Prediksi", ["Decision Tree", "Naive Bayes"])
 
-        with col1:
-            st.subheader("Data Asli")
-            st.dataframe(data, width=1000, height=400)
+    # Tombol Prediksi
+    if st.button("Prediksi"):
+        # Data Input
+        inputs = [bp, sg, al, su, rbc, bgr, bu, sc, sod, pot]
 
-        with col2:
-            st.subheader("Total Missing Value per Kolom")
-            missing_values = data.isnull().sum()
-            st.dataframe(missing_values.rename("Jumlah Missing Value"))
+        # Pilih Model
+        if model_choice == "Decision Tree":
+            selected_model = dt_model
+        elif model_choice == "Naive Bayes":
+            selected_model = nb_model
 
-        missing_proportions = data.isnull().mean()
-        high_missing_cols = missing_proportions[missing_proportions > 0.2]
-        low_missing_cols = missing_proportions[(missing_proportions > 0) & (missing_proportions <= 0.2)]
+        # Lakukan Prediksi
+        hasil_prediksi = predict(selected_model, inputs)
 
-        col3, col4 = st.columns(2)
-
-        with col3:
-            st.subheader("Kolom dengan Missing Value Tinggi (>20%)")
-            st.write(high_missing_cols if not high_missing_cols.empty else "Tidak ada.")
-
-        with col4:
-            st.subheader("Kolom dengan Missing Value Rendah (<=20%)")
-            st.write(low_missing_cols if not low_missing_cols.empty else "Tidak ada.")
-        
-        # Menampilkan tipe data setiap kolom
-        st.write("Tipe data setiap kolom:")
-        st.write(data.dtypes)
-
-        # Menampilkan data sebelum preprocessing
-        st.write("Data sebelum preprocessing: ")
-        st.dataframe(data.head())
-
-        # Imputasi missing values untuk kolom numerik dan kategorikal
-        imputer_mean = SimpleImputer(strategy='mean')
-        imputer_mode = SimpleImputer(strategy='most_frequent')
-
-        # Menangani missing value kolom numerik
-        for col in high_missing_cols.index:
-            if data[col].dtype in ['float64', 'int64']:
-                sample_values = data[col].dropna().sample(data[col].isnull().sum(), replace=True).values
-                data.loc[data[col].isnull(), col] = sample_values
-            else:
-                st.warning(f"Kolom {col} tidak numerik, dan tidak dapat diisi dengan imputasi numerik.")
-
-        for col in low_missing_cols.index:
-            if data[col].dtype in ['float64', 'int64']:
-                data[col] = imputer_mean.fit_transform(data[[col]]).flatten()
-            else:
-                data[col] = imputer_mode.fit_transform(data[[col]]).flatten()
-        
-        # Pastikan kolom kategorikal ditangani
-        for col in ['wc', 'rc']:  # Kolom kategorikal yang harus di-imputasi
-            if col in data.columns:
-                data[col] = imputer_mode.fit_transform(data[[col]]).flatten()
-
-        # Melakukan One-Hot Encoding
-        categorical_columns = ['rbc', 'pc', 'pcc', 'ba', 'pcv', 'wc', 'rc', 'htn', 'dm', 'cad', 'appet', 'pe', 'ane', 'classification']
-        valid_categorical_columns = [col for col in categorical_columns if col in data.columns]
-
-        if valid_categorical_columns:
-            new_df = pd.get_dummies(data, columns=valid_categorical_columns, drop_first=True)
+        # Tampilkan Hasil
+        if hasil_prediksi == 1:
+            st.success("Hasil Prediksi: Pasien Menderita CKD (Chronic Kidney Disease)")
+        elif hasil_prediksi == 0:
+            st.success("Hasil Prediksi: Pasien Tidak Menderita CKD")
         else:
-            st.error("Tidak ada kolom kategorikal yang valid ditemukan untuk encoding.")
+            st.error(hasil_prediksi)
 
-        # Konversi kolom biner menggunakan LabelEncoder
-        label_encoder = LabelEncoder()
-        binary_columns = ['htn', 'dm', 'cad', 'appet', 'pe', 'ane', 'classification']
-        
-        for col in binary_columns:
-            if col in new_df.columns:
-                new_df[col] = label_encoder.fit_transform(new_df[col])
-
-        # Imputasi lagi untuk menghindari NaN pada data numerik
-        new_df = new_df.apply(pd.to_numeric, errors='coerce')
-        new_df.fillna(0, inplace=True)
-
-        st.subheader("Data Setelah Perbaikan Tipe dan Imputasi Missing Value")
-        st.dataframe(new_df)
-
-        # Memilih fitur yang relevan berdasarkan korelasi
-        corr_matrix = new_df.corr()
-        Dependent_corr = corr_matrix.get('classification', pd.Series())
-        Imp_features = Dependent_corr[Dependent_corr.abs() < 0.4].index.tolist()
-        if 'id' in Imp_features:
-            Imp_features.remove('id')
-
-        st.subheader("Fitur yang Dipilih Berdasarkan Korelasi")
-        st.write(Imp_features if Imp_features else "Tidak ada fitur yang memenuhi syarat korelasi.")
-
-    elif page == "Modeling":
-        st.header("Pelatihan Model")
-
-        if new_df is None or Imp_features is None:
-            st.error("Silakan lakukan preprocessing terlebih dahulu!")
-            return
-
-        X = new_df[Imp_features]
-        y = new_df['classification']  # Target column
-
-        st.subheader("Pilih Model")
-        model_type = st.selectbox("Model", ["Naive Bayes", "Decision Tree"])
-
-        if model_type == "Naive Bayes":
-            model = GaussianNB()
-        elif model_type == "Decision Tree":
-            model = DecisionTreeClassifier()
-
-        model.fit(X, y)
-        st.session_state['model'] = model
-        st.session_state['X_test'], st.session_state['y_test'] = train_test_split(X, y, test_size=0.2, random_state=42)
-
-        st.success(f"Model {model_type} berhasil dilatih!")
-
-    elif page == "Evaluasi":
-        st.header("Evaluasi Model")
-
-        if 'model' not in st.session_state:
-            st.error("Model belum dilatih!")
-            return
-
-        model = st.session_state['model']
-        X_test = st.session_state['X_test']
-        y_test = st.session_state['y_test']
-
-        y_pred = model.predict(X_test)
-        accuracy = accuracy_score(y_test, y_pred)
-
-        st.subheader("Akurasi Model")
-        st.write(f"Akurasi: {accuracy * 100:.2f}%")
-
-        st.subheader("Classification Report")
-        st.text(classification_report(y_test, y_pred))
-
-        st.subheader("Confusion Matrix")
-        cm = confusion_matrix(y_test, y_pred)
-        fig, ax = plt.subplots()
-        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", ax=ax)
-        st.pyplot(fig)
-
-if __name__ == "__main__":
-    main()
+elif tabs == "Visualisation":
+    # Placeholder untuk halaman visualisasi
+    st.title("Halaman Visualisasi")
+    st.write("""
+    Halaman ini akan menampilkan visualisasi data jika tersedia.
+    Anda dapat menambahkan grafik atau diagram untuk memahami distribusi data.
+    """)
